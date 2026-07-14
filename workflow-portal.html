@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>업무 Flow 포털</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --line:#e3e6ea; --text:#1e242b; --sub:#68737f;
+    --manual:#94a3b8; --partial:#f2b01e; --mostly:#e8752a;
+    --accent:#4f46e5; --panel-w:400px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+       background:var(--bg); color:var(--text); min-height:100vh;}
+
+  header{background:#fff; border-bottom:1px solid var(--line); padding:14px 28px;
+         display:flex; align-items:center; gap:24px; flex-wrap:wrap; position:sticky; top:0; z-index:20;}
+  header .title-wrap{display:flex; flex-direction:column; gap:12px; min-width:0;}
+  header h1{font-size:19px; font-weight:800; letter-spacing:-.02em;}
+  header .hint{font-size:12.5px; color:var(--sub); line-height:1.5;}
+  .legend{display:flex; gap:14px; margin-left:auto; font-size:12px; color:var(--sub); align-items:center;}
+  .legend b{color:var(--text); font-size:11.5px;}
+  .legend span{display:flex; align-items:center; gap:5px;}
+  .lg{width:18px; height:12px; border-radius:3px; background:#fff; border:2px solid var(--manual);}
+  .lg.p{border-color:var(--partial);} .lg.m{border-color:var(--mostly);}
+
+  main{padding:18px 24px 50px; overflow-x:auto; transition:margin-right .25s ease;}
+  main.shifted{margin-right:var(--panel-w);}
+  #diagram{display:block; min-width:1180px; width:100%; height:auto;
+           background:#fff; border:1px solid var(--line); border-radius:14px;}
+
+  /* SVG 요소 */
+  .box{cursor:pointer;}
+  .box rect{fill:#fff; stroke:var(--manual); stroke-width:1.8; rx:8;
+            filter:drop-shadow(0 1px 2px rgba(20,30,50,.10)); transition:.12s;}
+  .box.partial rect{stroke:var(--partial); stroke-width:2.6;}
+  .box.mostly rect{stroke:var(--mostly); stroke-width:2.6;}
+  .box:hover rect{filter:drop-shadow(0 3px 7px rgba(20,30,50,.22));}
+  .box.selected rect{stroke:var(--accent); stroke-width:3;}
+  .box text{font-size:13px; font-weight:700; fill:var(--text); text-anchor:middle; pointer-events:none;}
+  .cbadge{cursor:pointer;}
+  .cbadge circle{fill:#ef4444; stroke:#fff; stroke-width:2; transition:.12s;}
+  .cbadge:hover circle{fill:#dc2626;}
+  .cbadge text{font-size:11.5px; font-weight:800; fill:#fff; text-anchor:middle; pointer-events:none;}
+  .lane-btn{cursor:pointer;}
+  .lane-btn rect{fill:#fff; stroke:#e6d9f7; stroke-width:1.4; rx:9;
+                 filter:drop-shadow(0 1px 2px rgba(20,30,50,.08)); transition:.12s;}
+  .lane-btn:hover rect{stroke:var(--accent);}
+  .lane-btn text{font-size:13.5px; font-weight:800; fill:var(--text); text-anchor:middle; pointer-events:none;}
+  .lane-btn .bar{fill:#c084fc;}
+  .stage text{font-size:14.5px; font-weight:800; text-anchor:middle;}
+  .edge{fill:none; stroke:#9aa4b1; stroke-width:1.5; stroke-linejoin:round;}
+  .edge.hl{stroke:var(--accent); stroke-width:2.6;}
+  .lane-line{stroke:#e8ebef; stroke-dasharray:4 5; stroke-width:1;}
+  .flow-tag{font-size:11px; font-weight:700; fill:#8b84d7;}
+
+  /* 사이드 패널 */
+  #panel{position:fixed; top:0; right:0; width:var(--panel-w); height:100vh; background:#fff;
+         border-left:1px solid var(--line); box-shadow:-6px 0 24px rgba(0,0,0,.08);
+         transform:translateX(105%); transition:transform .25s ease; z-index:30; display:flex; flex-direction:column;}
+  #panel.open{transform:translateX(0);}
+  .p-head{padding:18px 22px 14px; border-bottom:1px solid var(--line); display:flex; align-items:flex-start; gap:10px;}
+  .p-head h2{font-size:19px; font-weight:800; letter-spacing:-.02em; flex:1;}
+  .p-close{border:none; background:#f1f2f4; border-radius:8px; width:30px; height:30px; font-size:15px;
+           cursor:pointer; color:var(--sub); flex-shrink:0;}
+  .p-close:hover{background:#e4e5e9; color:var(--text);}
+  .p-body{padding:18px 22px 40px; overflow-y:auto; flex:1;}
+  .badges{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;}
+  .badge{font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:12px; background:#eef0f3; color:#444;}
+  .badge.lv-manual{background:#eef0f3;} .badge.lv-partial{background:#fdf3d7; color:#9a6b00;}
+  .badge.lv-mostly{background:#fde8d9; color:#b3491a;}
+  .badge.org-b{background:#f3e8ff; color:#7e22ce;}
+  .badge.flow-b{background:#e0e7ff; color:#4338ca;}
+  .p-desc{font-size:13.5px; color:var(--sub); line-height:1.6; margin-bottom:20px;}
+  .sec{margin-bottom:22px;}
+  .sec h3{font-size:12.5px; font-weight:800; color:var(--accent); margin-bottom:10px; letter-spacing:.04em;}
+  ol.steps{list-style:none; counter-reset:s;}
+  ol.steps li{counter-increment:s; position:relative; padding:0 0 14px 34px; font-size:13.5px; line-height:1.55;}
+  ol.steps li::before{content:counter(s); position:absolute; left:0; top:0; width:22px; height:22px;
+          background:var(--accent); color:#fff; border-radius:50%; font-size:11.5px; font-weight:700;
+          display:flex; align-items:center; justify-content:center;}
+  ol.steps li:not(:last-child)::after{content:""; position:absolute; left:10.5px; top:24px; bottom:2px;
+          width:1.5px; background:#dcdfe4;}
+  .doc,.person{display:flex; align-items:center; gap:10px; padding:9px 12px; border:1px solid var(--line);
+        border-radius:9px; margin-bottom:7px; font-size:13px; background:#fafbfc;}
+  .doc a{color:var(--accent); font-weight:600; text-decoration:none;}
+  .doc a:hover{text-decoration:underline;}
+  .avatar{width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#818cf8,#c084fc);
+          color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .person .info{line-height:1.4;}
+  .person .nm{font-weight:700;} .person .meta{font-size:12px; color:var(--sub);}
+  ul.roles{list-style:none;}
+  ul.roles li{position:relative; padding:0 0 10px 18px; font-size:13.5px; line-height:1.55;}
+  ul.roles li::before{content:"•"; position:absolute; left:2px; color:var(--accent); font-weight:900;}
+  .chips{display:flex; gap:6px; flex-wrap:wrap;}
+  .chip{border:1px solid var(--line); background:#fff; border-radius:14px; padding:5px 12px;
+        font-size:12px; font-weight:600; cursor:pointer; color:var(--text); font-family:inherit; transition:.15s;}
+  .chip:hover{border-color:var(--accent); color:var(--accent);}
+  .note{font-size:11.5px; color:#9ca3af; margin-top:6px;}
+  /* 캠페인 레이어 팝업 */
+  #modal-overlay{position:fixed; inset:0; background:rgba(15,20,30,.45); z-index:50;
+                 display:none; align-items:center; justify-content:center;}
+  #modal-overlay.open{display:flex;}
+  .modal{background:#fff; border-radius:16px; width:min(440px, calc(100vw - 40px));
+         max-height:70vh; display:flex; flex-direction:column;
+         box-shadow:0 20px 60px rgba(0,0,0,.25); animation:pop .18s ease;}
+  @keyframes pop{from{transform:scale(.94); opacity:0;} to{transform:scale(1); opacity:1;}}
+  .m-head{padding:18px 22px 14px; border-bottom:1px solid var(--line);
+          display:flex; align-items:center; gap:10px;
+          background:#f1f3f5; border-radius:16px 16px 0 0;}
+  .m-head h2{font-size:17px; font-weight:800; flex:1; letter-spacing:-.02em;}
+  .m-head .cnt{font-size:12.5px; font-weight:600; color:var(--sub);}
+  .m-body{padding:14px 22px 22px; overflow-y:auto;}
+  .camp-item{display:flex; align-items:center; gap:11px; padding:11px 13px;
+             border:1px solid var(--line); border-radius:10px; margin-top:8px;
+             font-size:13.5px; font-weight:600; background:#fafbfc;}
+  .cstat{flex-shrink:0; font-size:11px; font-weight:800; padding:3px 9px; border-radius:10px;
+         min-width:52px; text-align:center;}
+  .cstat.new{background:#dbeafe; color:#1d4ed8;}
+  .cstat.ing{background:#dcfce7; color:#15803d;}
+  .cstat.delay{background:#ffedd5; color:#c2410c;}
+  .camp-item .cname{flex:1; min-width:0;}
+  .sys-btn{flex-shrink:0; border:1px solid #c7d2fe; background:#eef2ff; color:#4338ca;
+           font-size:11.5px; font-weight:700; padding:5px 11px; border-radius:8px;
+           cursor:pointer; font-family:inherit; transition:.12s;}
+  .sys-btn:hover{background:#e0e7ff;}
+  @media (max-width:900px){ :root{--panel-w:100vw;} main.shifted{margin-right:0;} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-wrap">
+    <h1>업무 Flow 포탈(ATL 예시)</h1>
+    <span class="hint">아래 화면은 프로토타입으로서 화면 예시입니다. 표시된 조직명, 인원명, 캠페인명 등은 모두 픽션이며 사실과 관련 없습니다. 조직명, 작업 박스, 뱃지 카운트를 클릭하면 상세 정보가 열립니다.</span>
+  </div>
+  <div class="legend">
+    <b>AX LEVEL</b>
+    <span><i class="lg"></i>Manual</span>
+    <span><i class="lg p"></i>Partially</span>
+    <span><i class="lg m"></i>Almost</span>
+  </div>
+</header>
+
+<main id="main"><svg id="diagram" viewBox="0 0 1740 915" xmlns="http://www.w3.org/2000/svg"></svg></main>
+
+<div id="modal-overlay">
+  <div class="modal">
+    <div class="m-head"><h2 id="m-title"></h2><span class="cnt" id="m-cnt"></span>
+      <button class="p-close" onclick="closeModal()">✕</button></div>
+    <div class="m-body" id="m-body"></div>
+  </div>
+</div>
+
+<aside id="panel">
+  <div class="p-head"><h2 id="p-title"></h2><button class="p-close" onclick="closePanel()">✕</button></div>
+  <div class="p-body" id="p-body"></div>
+</aside>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   ★ 데이터 영역 — 실제 내용으로 교체할 때 이 부분만 수정하세요 ★
+   (아래는 모두 샘플 데이터입니다)
+═══════════════════════════════════════════════════════════════ */
+
+// ── 조직 정보 ──
+const ORGS = {
+  sales:   { name:"영업", desc:"광고주 발굴부터 수주까지 비즈니스 접점을 총괄하는 조직입니다.",
+    roles:["신규 광고주 발굴 및 제안 활동","광고주 니즈 파악 및 OT 주선","수주 계약 및 거래 조건 관리","광고주 관계 관리(AM)"],
+    contacts:[{name:"김영수",title:"팀장",email:"yskim@company.com",ext:"1201"},{name:"박지현",title:"책임",email:"jhpark@company.com",ext:"1202"}]},
+  mkt:     { name:"마케팅", desc:"시장·소비자 분석 기반의 캠페인 전략을 수립하는 조직입니다.",
+    roles:["시장/경쟁사/소비자 데이터 분석","캠페인 전략 및 방향성 수립","브랜드 포지셔닝 제안"],
+    contacts:[{name:"이서연",title:"팀장",email:"sylee@company.com",ext:"1301"}]},
+  plan:    { name:"기획", desc:"캠페인 전 과정을 총괄 지휘하는 AE 조직입니다. 광고주 커뮤니케이션의 중심입니다.",
+    roles:["광고주 OT 접수 및 Creative Brief 작성","광고주 시안/최종 리뷰 진행","캠페인 일정·예산 총괄 관리","청구 및 실적정산 수행"],
+    contacts:[{name:"최민준",title:"팀장",email:"mjchoi@company.com",ext:"1401"},{name:"정하늘",title:"책임",email:"hnjung@company.com",ext:"1402"}]},
+  media:   { name:"매체", desc:"매체 전략 수립부터 바잉, 집행까지 미디어 전 과정을 담당합니다.",
+    roles:["매체 전략 및 매체 기획 수립","매체사 협상 및 바잉","캠페인 집행 및 모니터링"],
+    contacts:[{name:"강도윤",title:"팀장",email:"dykang@company.com",ext:"1501"}]},
+  prod:    { name:"제작", desc:"크리에이티브 컨셉과 광고물 제작을 담당하는 조직입니다.",
+    roles:["크리에이티브 컨셉 개발","시안 제작 및 광고물 제작","제작 협력업체 선정 및 관리"],
+    contacts:[{name:"윤소라",title:"팀장",email:"sryoon@company.com",ext:"1601"}]},
+  prodsup: { name:"제작지원(PM)", short:"제작지원\n(PM)", desc:"제작 견적, 협력업체 정산 등 제작 프로세스를 지원합니다.",
+    roles:["제작 견적 작성 및 검증","제작 진행 지원 및 품질 관리","협력업체 청구 검토"],
+    contacts:[{name:"한지훈",title:"팀장",email:"jhhan@company.com",ext:"1701"}]},
+  fin:     { name:"회계/재경", desc:"수금, 실적 집계 등 재무 프로세스를 담당합니다.",
+    roles:["광고주 입금 확인 및 금액 수령","전사 실적 집계 및 재무 보고","세금계산서 관리"],
+    contacts:[{name:"오세영",title:"팀장",email:"syoh@company.com",ext:"1801"}]},
+  gcamp:   { name:"글로벌 캠페인", short:"글로벌\n캠페인", desc:"해외 시장 대상 캠페인의 기획·제작을 총괄합니다.",
+    roles:["글로벌 캠페인 Creative Brief 작성","현지 광고주 리뷰 및 소재 제작 관리","글로벌 청구/실적정산"],
+    contacts:[{name:"임유나",title:"팀장",email:"ynlim@company.com",ext:"1901"}]},
+  gmedia:  { name:"글로벌 미디어", short:"글로벌\n미디어", desc:"해외 매체 기획·바잉·집행을 담당합니다.",
+    roles:["글로벌 매체 기획 및 플랜 확정","해외 매체 바잉 및 집행","현지 미디어 파트너 관리"],
+    contacts:[{name:"서준호",title:"팀장",email:"jhseo@company.com",ext:"2001"}]},
+  oversea: { name:"해외법인", short:"해외\n법인", desc:"현지 법인에서 캠페인 전 과정을 수행합니다.",
+    roles:["현지 캠페인 기획·제작·집행 일괄 수행","본사와의 실적 연계 및 보고","현지 업체/매체 관리"],
+    contacts:[{name:"David Kim",title:"법인장",email:"david.kim@company-us.com",ext:"+1-213-555-0100"}]},
+};
+
+// ── 작업 정보 ──
+// col: 가로 위치(0~9) / org: 소속 레인 / level: manual|partial|mostly / next: 다음 작업 id
+// detail 생략 시 기본값 자동 생성
+const TASKS = [
+// 국내 캠페인
+{ id:"d-sales", name:"영업", col:0, org:"sales", flow:"국내 캠페인", level:"manual", next:["d-ot"],
+  detail:{ summary:"신규/기존 광고주 대상 제안 활동을 통해 캠페인을 수주합니다.",
+    procedures:["타겟 광고주 리스트업 및 접촉","광고주 니즈 청취 및 제안서 제출","수주 확정 및 계약 체결","기획팀에 OT 일정 공유"],
+    manuals:[{title:"영업 제안 프로세스 가이드 v2.1",link:"#"}] }},
+{ id:"d-ot", name:"광고주\nOT", col:0, org:"plan", flow:"국내 캠페인", level:"manual", next:["d-brief"],
+  detail:{ summary:"광고주로부터 캠페인 목표, 예산, 일정 등 요구사항을 접수합니다.",
+    procedures:["OT 미팅 참석 및 요구사항 청취","OT 브리프 문서 정리","내부 킥오프 미팅 소집","관련 부서(마케팅/매체/제작) 공유"],
+    manuals:[{title:"광고주 OT 체크리스트",link:"#"}] }},
+{ id:"d-strategy", name:"전략\n수립", col:1, org:"mkt", flow:"국내 캠페인", level:"partial", next:["d-brief"],
+  detail:{ summary:"시장·소비자 분석을 기반으로 캠페인 전략 방향을 수립합니다. (분석 도구 일부 디지털화)",
+    procedures:["시장/경쟁사 데이터 수집(분석 툴 활용)","소비자 인사이트 도출","전략 방향서 작성","기획팀 Creative Brief에 반영"],
+    manuals:[{title:"전략수립 프레임워크 가이드",link:"#"},{title:"분석 툴 사용 매뉴얼",link:"#"}] }},
+{ id:"d-brief", name:"Creative\nBrief", col:1, org:"plan", flow:"국내 캠페인", level:"manual", next:["d-mediaplan","d-draft"],
+  detail:{ summary:"전략·매체·컨셉을 종합해 제작의 기준이 되는 Creative Brief를 작성합니다.",
+    procedures:["전략수립/매체전략/컨셉제작 결과 취합","Creative Brief 초안 작성","내부 리뷰 및 확정","제작·매체 부서 배포"],
+    manuals:[{title:"Creative Brief 작성 가이드 v3.0",link:"#"}] }},
+{ id:"d-mstrategy", name:"매체\n전략", col:1, org:"media", flow:"국내 캠페인", level:"partial", next:["d-brief"],
+  detail:{ summary:"캠페인 목표에 맞는 매체 믹스 전략을 수립합니다. (미디어 플래닝 툴 일부 활용)" }},
+{ id:"d-concept", name:"컨셉\n제작", col:1, org:"prod", flow:"국내 캠페인", level:"manual", next:["d-brief"],
+  detail:{ summary:"캠페인 크리에이티브 컨셉을 개발하여 Brief에 반영합니다." }},
+{ id:"d-mediaplan", name:"매체\n기획", col:2, org:"media", flow:"국내 캠페인", level:"partial", next:["d-review1"],
+  detail:{ summary:"확정된 Brief 기반으로 상세 매체 기획안을 수립합니다." }},
+{ id:"d-draft", name:"시안\n제작", col:2, org:"prod", flow:"국내 캠페인", level:"partial", next:["d-review1"],
+  detail:{ summary:"Brief 기반으로 광고 시안을 제작합니다. 글로벌 캠페인 시안 제작도 지원합니다." }},
+{ id:"d-review1", name:"광고주\n시안리뷰", col:3, org:"plan", flow:"국내 캠페인", level:"manual", next:["d-vendor"],
+  detail:{ summary:"광고주에게 시안과 매체기획안을 리뷰받고 피드백을 수렴합니다.",
+    procedures:["리뷰 자료 취합 및 어젠다 준비","광고주 리뷰 미팅 진행","피드백 정리 및 수정 방향 확정","수정사항 제작/매체 부서 전달"] }},
+{ id:"d-vendor", name:"업체\n선정", col:4, org:"prod", flow:"국내 캠페인", level:"manual", next:["d-quote"],
+  detail:{ summary:"제작 협력업체를 비교 검토하여 선정합니다." }},
+{ id:"d-quote", name:"견적\n작성", col:4, org:"prodsup", flow:"국내 캠페인", level:"partial", next:["d-review2"],
+  detail:{ summary:"선정 업체 기준으로 제작 견적을 작성합니다. (견적 시스템 일부 활용)",
+    procedures:["업체 견적서 접수","견적 시스템 입력 및 내부 검증","견적 승인 요청","최종 견적 광고주 리뷰 반영"] }},
+{ id:"d-review2", name:"광고주\n최종리뷰", col:5, org:"plan", flow:"국내 캠페인", level:"manual", next:["d-buying","d-prod"],
+  detail:{ summary:"제작물·매체안·견적에 대한 광고주 최종 승인을 받습니다." }},
+{ id:"d-buying", name:"매체\n바잉", col:6, org:"media", flow:"국내 캠페인", level:"partial", next:["d-exec"],
+  detail:{ summary:"확정된 매체기획안에 따라 매체 지면을 구매합니다." }},
+{ id:"d-prod", name:"제작", col:6, org:"prod", flow:"국내 캠페인", level:"partial", next:["d-exec","d-prodsup"],
+  detail:{ summary:"최종 승인된 시안 기반으로 광고물을 제작합니다." }},
+{ id:"d-prodsup", name:"제작지원", col:6, org:"prodsup", flow:"국내 캠페인", level:"partial", next:["d-billreview"],
+  detail:{ summary:"제작 진행 상황을 지원하고 품질·일정을 관리합니다. (진행 관리 시스템 일부 활용)" }},
+{ id:"d-exec", name:"집행", col:7, org:"media", flow:"국내 캠페인", level:"partial", next:["d-bill"],
+  detail:{ summary:"구매한 매체에 광고물을 게재하고 집행 상황을 모니터링합니다." }},
+{ id:"d-billreview", name:"청구\n검토", col:7, org:"prodsup", flow:"국내 캠페인", level:"manual", next:["d-bill"],
+  detail:{ summary:"협력업체 청구 내역을 검토하고 승인합니다." }},
+{ id:"d-bill", name:"청구", col:8, org:"plan", flow:"국내 캠페인", level:"mostly", next:["d-receive","d-settle"],
+  detail:{ summary:"집행 완료 건에 대해 광고주 청구를 진행합니다. (청구 시스템으로 대부분 디지털화)",
+    procedures:["청구 시스템에서 집행 내역 확인","청구서 자동 생성 및 검토","광고주 발송(전자 세금계산서 연동)","입금 예정 정보 재경팀 공유"],
+    manuals:[{title:"청구 시스템 사용자 매뉴얼",link:"#"},{title:"세금계산서 발행 가이드",link:"#"}] }},
+{ id:"d-receive", name:"금액\n수령", col:8, org:"fin", flow:"국내 캠페인", level:"manual", next:["d-total"],
+  detail:{ summary:"광고주 입금을 확인하고 수령 처리합니다." }},
+{ id:"d-settle", name:"실적\n정산", col:9, org:"plan", flow:"국내 캠페인", level:"mostly", next:["d-total"],
+  detail:{ summary:"캠페인 실적을 정산하고 결과를 보고합니다." }},
+{ id:"d-total", name:"실적\n집계", col:9, org:"fin", flow:"국내 캠페인", level:"mostly", next:[],
+  detail:{ summary:"전사 실적을 집계하여 재무 보고에 반영합니다. 국내/글로벌/해외법인 실적이 모두 모입니다." }},
+// 글로벌 캠페인
+{ id:"g-brief", name:"Creative\nBrief", col:1, org:"gcamp", flow:"글로벌 캠페인", level:"manual", next:["g-review","d-draft"],
+  detail:{ summary:"글로벌 캠페인의 Creative Brief를 작성합니다. 시안 제작은 국내 제작 조직과 협업합니다." }},
+{ id:"g-mediaplan", name:"매체\n기획", col:1, org:"gmedia", flow:"글로벌 캠페인", level:"partial", next:["g-plan"],
+  detail:{ summary:"해외 매체 기획안을 수립합니다." }},
+{ id:"g-plan", name:"플랜\n확정", col:2, org:"gmedia", flow:"글로벌 캠페인", level:"manual", next:["g-review","g-buying"],
+  detail:{ summary:"글로벌 미디어 플랜을 확정합니다." }},
+{ id:"g-review", name:"광고주\n리뷰", col:3, org:"gcamp", flow:"글로벌 캠페인", level:"manual", next:["g-asset"],
+  detail:{ summary:"글로벌 광고주 리뷰를 진행하고 피드백을 수렴합니다." }},
+{ id:"g-asset", name:"소재\n제작", col:4, org:"gcamp", flow:"글로벌 캠페인", level:"partial", next:["d-review2"],
+  detail:{ summary:"글로벌 캠페인 소재를 제작합니다. 최종 승인은 광고주 최종리뷰에서 이뤄집니다." }},
+{ id:"g-buying", name:"매체\n바잉", col:6, org:"gmedia", flow:"글로벌 캠페인", level:"partial", next:["g-exec"],
+  detail:{ summary:"해외 매체를 구매합니다." }},
+{ id:"g-exec", name:"집행", col:7, org:"gmedia", flow:"글로벌 캠페인", level:"manual", next:["g-bill"],
+  detail:{ summary:"해외 매체에 캠페인을 집행합니다." }},
+{ id:"g-bill", name:"청구", col:8, org:"gcamp", flow:"글로벌 캠페인", level:"mostly", next:["d-receive","g-settle"],
+  detail:{ summary:"글로벌 캠페인 청구를 진행합니다. 수금은 재경팀에서 처리합니다. (청구 시스템으로 대부분 디지털화)" }},
+{ id:"g-settle", name:"실적\n정산", col:9, org:"gcamp", flow:"글로벌 캠페인", level:"mostly", next:["d-total"],
+  detail:{ summary:"글로벌 캠페인 실적을 정산합니다." }},
+// 해외법인
+{ id:"o-brief", name:"Creative\nBrief", col:1, org:"oversea", flow:"해외법인", level:"manual", next:["o-review"] },
+{ id:"o-review", name:"광고주\n리뷰", col:2, org:"oversea", flow:"해외법인", level:"manual", next:["o-vendor"] },
+{ id:"o-vendor", name:"업체\n선정", col:3, org:"oversea", flow:"해외법인", level:"manual", next:["o-prod"] },
+{ id:"o-prod", name:"제작", col:4, org:"oversea", flow:"해외법인", level:"partial", next:["o-buying"] },
+{ id:"o-buying", name:"매체\n바잉", col:5, org:"oversea", flow:"해외법인", level:"manual", next:["o-exec"] },
+{ id:"o-exec", name:"집행", col:6, org:"oversea", flow:"해외법인", level:"partial", next:["o-bill"] },
+{ id:"o-bill", name:"청구", col:7, org:"oversea", flow:"해외법인", level:"manual", next:["o-receive"] },
+{ id:"o-receive", name:"금액\n수령", col:8, org:"oversea", flow:"해외법인", level:"manual", next:["o-settle"] },
+{ id:"o-settle", name:"실적\n정산", col:9, org:"oversea", flow:"해외법인", level:"mostly", next:["d-total"],
+  detail:{ summary:"해외법인 실적을 정산하고 본사 실적집계에 연계합니다." }},
+];
+
+// ── 작업별 진행 중 캠페인 (박스 우측 상단 빨간 숫자 뱃지로 표시) ──
+// status: new(New) | ing(처리중) | delay(지연)
+const CAMPAIGNS = {
+  "d-brief":   [{name:"○○○○ 캠페인",status:"new"},{name:"□□□□ 캠페인",status:"ing"}],
+  "d-draft":   [{name:"○○○○ 캠페인",status:"ing"},{name:"△△△△ 캠페인",status:"new"},{name:"◇◇◇◇ 캠페인",status:"delay"}],
+  "d-review1": [{name:"□□□□ 캠페인",status:"ing"},{name:"☆☆☆☆ 캠페인",status:"delay"}],
+  "d-prod":    [{name:"△△△△ 캠페인",status:"ing"},{name:"◎◎◎◎ 캠페인",status:"new"},{name:"▽▽▽▽ 캠페인",status:"ing"},{name:"◇◇◇◇ 캠페인",status:"delay"}],
+  "d-exec":    [{name:"○○○○ 캠페인",status:"ing"},{name:"□□□□ 캠페인",status:"ing"},{name:"◎◎◎◎ 캠페인",status:"new"},{name:"☆☆☆☆ 캠페인",status:"delay"},{name:"▽▽▽▽ 캠페인",status:"ing"}],
+  "d-bill":    [{name:"◇◇◇◇ 캠페인",status:"ing"},{name:"☆☆☆☆ 캠페인",status:"new"},{name:"○○○○ 캠페인",status:"delay"}],
+  "g-asset":   [{name:"◈◈◈◈ 캠페인",status:"new"},{name:"▷▷▷▷ 캠페인",status:"ing"}],
+  "g-exec":    [{name:"◈◈◈◈ 캠페인",status:"ing"},{name:"▷▷▷▷ 캠페인",status:"delay"}],
+  "o-exec":    [{name:"◐◐◐◐ 캠페인",status:"ing"}],
+};
+
+/* ═══════════ 이하 레이아웃/렌더링 로직 (수정 불필요) ═══════════ */
+
+const NS="http://www.w3.org/2000/svg";
+const COLX = i => 200 + i*160;           // 컬럼 중심 x
+const BOXW = 130, BOXH = 46;
+const LANES = ["sales","mkt","plan","media","prod","prodsup","fin","gcamp","gmedia","oversea"];
+const LANEY = {sales:110, mkt:190, plan:270, media:350, prod:430, prodsup:510, fin:590, gcamp:670, gmedia:750, oversea:852};
+const STAGES = [
+  {name:"영업", x1:125, x2:285},
+  {name:"기획", x1:285, x2:765},
+  {name:"제작", x1:765, x2:1245},
+  {name:"집행", x1:1245, x2:1565},
+  {name:"정산", x1:1565, x2:1725},
+];
+const STAGE_FILL = ["#d7dbe0","#b9bfc7","#939ba5","#646d78","#343b44"];
+const STAGE_OF_COL = ["영업","기획","기획","기획","제작","제작","제작","집행","집행","정산"];
+// 원본의 영역 색상 (연하게)
+const REGIONS = [
+  {x:130,y:72,w:160,h:240,fill:"#f9a8a8",op:.22},      // 영업 접점
+  {x:292,y:154,w:948,h:392,fill:"#f5e27a",op:.25},     // 국내 기획~제작
+  {x:1248,y:314,w:312,h:312,fill:"#86e3a0",op:.22},    // 집행/청구
+  {x:1568,y:72,w:154,h:818,fill:"#67dce8",op:.18},     // 정산
+  {x:292,y:634,w:1268,h:152,fill:"#a5a1f0",op:.20},    // 글로벌
+  {x:292,y:816,w:1268,h:74,fill:"#a5a1f0",op:.20},     // 해외법인
+];
+// 화살표 세로 구간이 겹칠 때 살짝 어긋나게 하는 보정값
+const EDGE_TWEAK = {
+  "d-brief>d-draft":{midXoff:8}, "d-draft>d-review1":{midXoff:8},
+  "d-review2>d-prod":{midXoff:8}, "d-billreview>d-bill":{midXoff:-8},
+  "g-brief>d-draft":{midXoff:-8},
+  "d-concept>d-brief":{route:"leftDetour"},   // 매체전략 박스를 피해 좌측 우회
+  "o-settle>d-total":{route:"rightDetour"},   // 글로벌 실적정산 박스를 피해 우측 우회
+};
+
+const LEVEL_LABEL = {manual:"Manual", partial:"Partially Digitized", mostly:"Almost Digitized"};
+const svg = document.getElementById("diagram");
+const $main = document.getElementById("main");
+const $panel = document.getElementById("panel");
+let currentSelected = null;
+
+const taskById = id => TASKS.find(t=>t.id===id);
+const boxGeo = t => { const cx=COLX(t.col), cy=LANEY[t.org];
+  return {cx, cy, l:cx-BOXW/2, r:cx+BOXW/2, t:cy-BOXH/2, b:cy+BOXH/2}; };
+const el = (tag, attrs={}) => { const e=document.createElementNS(NS,tag);
+  for(const k in attrs) e.setAttribute(k,attrs[k]); return e; };
+
+function getDetail(t){
+  const d=t.detail||{}, org=ORGS[t.org], nm=t.name.replace("\n"," ");
+  return {
+    summary: d.summary || `${nm} 작업을 수행합니다. (상세 설명 입력 필요)`,
+    procedures: d.procedures || [`${nm} 요청 접수 및 사전 준비`,`${nm} 수행 및 내부 검토`,`결과 승인 및 다음 단계 전달`],
+    manuals: d.manuals || [{title:`${nm} 업무 매뉴얼 v1.0`,link:"#"}],
+    contacts: d.contacts || org.contacts,
+  };
+}
+
+function render(){
+  svg.innerHTML = `<defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9aa4b1"/></marker>
+    <marker id="arr-hl" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4f46e5"/></marker>
+  </defs>`;
+
+  // 배경 영역
+  REGIONS.forEach(r=>svg.appendChild(el("rect",{x:r.x,y:r.y,width:r.w,height:r.h,rx:12,fill:r.fill,"fill-opacity":r.op})));
+
+  // 레인 구분선
+  [150,230,310,390,470,550,630,710,790].forEach(y=>
+    svg.appendChild(el("line",{x1:125,y1:y,x2:1725,y2:y,class:"lane-line"})));
+  svg.appendChild(el("line",{x1:20,y1:803,x2:1725,y2:803,stroke:"#d4d9df","stroke-width":1.5}));
+
+  // 단계 헤더 (화살촉 밴드)
+  STAGES.forEach((s,i)=>{
+    const g=el("g",{class:"stage"});
+    const y1=14,y2=50,my=32,n=14;
+    const pts=`${s.x1},${y1} ${s.x2-n},${y1} ${s.x2},${my} ${s.x2-n},${y2} ${s.x1},${y2} ${s.x1+n},${my}`;
+    g.appendChild(el("polygon",{points:pts,fill:STAGE_FILL[i]}));
+    const tx=el("text",{x:(s.x1+s.x2)/2,y:37,fill:i<2?"#3d434b":"#fff"}); tx.textContent=s.name;
+    g.appendChild(tx); svg.appendChild(g);
+  });
+
+  // 화살표 (박스 아래에 깔리도록 먼저 그림)
+  TASKS.forEach(s=>(s.next||[]).forEach(nid=>{
+    const t=taskById(nid); if(!t) return;
+    const p=el("path",{d:edgePath(s,t),class:"edge","marker-end":"url(#arr)"});
+    p.dataset.from=s.id; p.dataset.to=nid;
+    svg.appendChild(p);
+  }));
+
+  // 좌측 조직 버튼
+  LANES.forEach(orgId=>{
+    const org=ORGS[orgId], cy=LANEY[orgId];
+    const g=el("g",{class:"lane-btn"});
+    g.appendChild(el("rect",{x:14,y:cy-25,width:100,height:50,rx:9}));
+    g.appendChild(el("rect",{x:14,y:cy-25,width:5,height:50,rx:2.5,class:"bar"}));
+    const lines=(org.short||org.name).split("\n");
+    lines.forEach((ln,i)=>{
+      const tx=el("text",{x:66,y:cy+(lines.length>1?(i===0?-3:14):5)}); tx.textContent=ln; g.appendChild(tx);
+    });
+    g.addEventListener("click",()=>openOrg(orgId));
+    svg.appendChild(g);
+  });
+
+  // 작업 박스
+  TASKS.forEach(t=>{
+    const b=boxGeo(t);
+    const g=el("g",{class:"box "+t.level}); g.dataset.tid=t.id;
+    g.appendChild(el("rect",{x:b.l,y:b.t,width:BOXW,height:BOXH,rx:8}));
+    const lines=t.name.split("\n");
+    lines.forEach((ln,i)=>{
+      const tx=el("text",{x:b.cx,y:b.cy+(lines.length>1?(i===0?-3:14):5)}); tx.textContent=ln; g.appendChild(tx);
+    });
+    g.addEventListener("click",()=>openTask(t.id));
+    // 캠페인 수 뱃지
+    const camps=CAMPAIGNS[t.id];
+    if(camps && camps.length){
+      const bg=el("g",{class:"cbadge"});
+      bg.appendChild(el("circle",{cx:b.r-2,cy:b.t+2,r:11}));
+      const tx=el("text",{x:b.r-2,y:b.t+6}); tx.textContent=camps.length; bg.appendChild(tx);
+      bg.addEventListener("click",e=>{ e.stopPropagation(); openModal(t.id); });
+      g.appendChild(bg);
+    }
+    svg.appendChild(g);
+  });
+}
+
+// ── 캠페인 레이어 팝업 ──
+const $overlay=document.getElementById("modal-overlay");
+function openModal(id){
+  const t=taskById(id); if(!t) return;
+  const camps=CAMPAIGNS[id]||[];
+  document.getElementById("m-title").textContent=`${t.name.replace("\n"," ")} · 진행 캠페인/JOB`;
+  document.getElementById("m-cnt").textContent=`${camps.length}건`;
+  const STATUS={new:"New", ing:"처리중", delay:"지연"};
+  const ORDER={new:0, ing:1, delay:2};
+  const sorted=[...camps].sort((a,b)=>ORDER[a.status]-ORDER[b.status]);
+  document.getElementById("m-body").innerHTML=
+    sorted.map(c=>`<div class="camp-item"><span class="cstat ${c.status}">${STATUS[c.status]}</span>
+      <span class="cname">${c.name}</span>
+      <button class="sys-btn" type="button">시스템 바로가기</button></div>`).join("");
+  $overlay.classList.add("open");
+}
+function closeModal(){ $overlay.classList.remove("open"); }
+$overlay.addEventListener("click",e=>{ if(e.target===$overlay) closeModal(); });
+
+// 직각(orthogonal) 경로 계산
+function edgePath(s,t){
+  const a=boxGeo(s), b=boxGeo(t);
+  const tw=EDGE_TWEAK[s.id+">"+t.id]||{};
+  if(tw.route==="leftDetour"){
+    const xd=Math.min(a.l,b.l)-14;
+    return `M${a.l},${a.cy} L${xd},${a.cy} L${xd},${b.cy} L${b.l-2},${b.cy}`;
+  }
+  if(tw.route==="rightDetour"){
+    const xd=Math.max(a.r,b.r)+12;
+    return `M${a.r},${a.cy} L${xd},${a.cy} L${xd},${b.cy} L${b.r+2},${b.cy}`;
+  }
+  if(Math.abs(a.cy-b.cy)<1)   // 같은 레인 → 수평
+    return `M${a.r},${a.cy} L${b.l-2},${b.cy}`;
+  if(Math.abs(a.cx-b.cx)<1)   // 같은 컬럼 → 수직
+    return b.cy>a.cy ? `M${a.cx},${a.b} L${b.cx},${b.t-2}` : `M${a.cx},${a.t} L${b.cx},${b.b+2}`;
+  if(b.l>a.r){                // 오른쪽으로 진행
+    const mx=(a.r+b.l)/2+(tw.midXoff||0);
+    return `M${a.r},${a.cy} L${mx},${a.cy} L${mx},${b.cy} L${b.l-2},${b.cy}`;
+  }
+  const mx=(a.l+b.r)/2+(tw.midXoff||0); // 왼쪽(역방향)
+  return `M${a.l},${a.cy} L${mx},${a.cy} L${mx},${b.cy} L${b.r+2},${b.cy}`;
+}
+
+// ── 선택 강조 ──
+function highlight(id){
+  currentSelected=id;
+  svg.querySelectorAll(".box.selected").forEach(x=>x.classList.remove("selected"));
+  svg.querySelectorAll(".edge").forEach(p=>{
+    const on = id && (p.dataset.from===id || p.dataset.to===id);
+    p.classList.toggle("hl",on);
+    p.setAttribute("marker-end",on?"url(#arr-hl)":"url(#arr)");
+    if(on) p.parentNode.appendChild(p); // 강조 선을 위로 — 이후 박스가 다시 위로 오도록 재정렬
+  });
+  if(id){
+    const g=svg.querySelector(`.box[data-tid="${id}"]`);
+    if(g){ g.classList.add("selected"); }
+  }
+  // 박스를 항상 선 위로
+  svg.querySelectorAll(".box, .lane-btn").forEach(g=>svg.appendChild(g));
+}
+
+// ── 사이드 패널 ──
+function openPanel(title, html){
+  document.getElementById("p-title").textContent=title;
+  document.getElementById("p-body").innerHTML=html;
+  $panel.classList.add("open"); $main.classList.add("shifted");
+}
+function closePanel(){
+  $panel.classList.remove("open"); $main.classList.remove("shifted");
+  highlight(null);
+}
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"){
+  if($overlay.classList.contains("open")) closeModal(); else closePanel();
+}});
+
+const personHtml=c=>`<div class="person"><div class="avatar">${c.name.slice(0,1)}</div>
+  <div class="info"><div class="nm">${c.name} ${c.title}</div>
+  <div class="meta">${c.email} · 내선 ${c.ext}</div></div></div>`;
+
+function openOrg(orgId){
+  const org=ORGS[orgId];
+  const tasks=TASKS.filter(t=>t.org===orgId);
+  highlight(null);
+  openPanel(org.name,`
+    <div class="badges"><span class="badge org-b">조직</span></div>
+    <p class="p-desc">${org.desc}</p>
+    <div class="sec"><h3>주요 역할</h3><ul class="roles">${org.roles.map(r=>`<li>${r}</li>`).join("")}</ul></div>
+    <div class="sec"><h3>담당자</h3>${org.contacts.map(personHtml).join("")}</div>
+    <div class="sec"><h3>수행 작업</h3><div class="chips">
+      ${tasks.map(t=>`<button class="chip" onclick="openTask('${t.id}')">${t.name.replace("\\n"," ")} <small style="color:#9ca3af">· ${t.flow}</small></button>`).join("")||"<span class='note'>해당 없음</span>"}
+    </div></div>`);
+}
+
+function openTask(id){
+  const t=taskById(id); if(!t) return;
+  const org=ORGS[t.org], d=getDetail(t);
+  const prev=TASKS.filter(x=>(x.next||[]).includes(id));
+  const next=(t.next||[]).map(taskById).filter(Boolean);
+  highlight(id);
+  const chip=x=>`<button class="chip" onclick="openTask('${x.id}')">${x.name.replace("\\n"," ")}</button>`;
+  openPanel(t.name.replace("\n"," "),`
+    <div class="badges">
+      <span class="badge org-b">${org.name}</span>
+      <span class="badge flow-b">${t.flow}</span>
+      <span class="badge">${STAGE_OF_COL[t.col]} 단계</span>
+      <span class="badge lv-${t.level}">${LEVEL_LABEL[t.level]}</span>
+    </div>
+    <p class="p-desc">${d.summary}</p>
+    <div class="sec"><h3>절차</h3><ol class="steps">${d.procedures.map(p=>`<li>${p}</li>`).join("")}</ol></div>
+    <div class="sec"><h3>매뉴얼</h3>${d.manuals.map(m=>`<div class="doc">📄 <a href="${m.link}" target="_blank">${m.title}</a></div>`).join("")}
+      <div class="note">※ 링크는 사내 문서 시스템 URL로 교체하세요.</div></div>
+    <div class="sec"><h3>담당자</h3>${d.contacts.map(personHtml).join("")}</div>
+    <div class="sec"><h3>연결 작업</h3>
+      ${prev.length?`<div style="margin-bottom:8px"><span class="note">이전 ← </span>${prev.map(chip).join(" ")}</div>`:""}
+      ${next.length?`<div><span class="note">다음 → </span>${next.map(chip).join(" ")}</div>`:""}
+      ${!prev.length&&!next.length?"<span class='note'>연결된 작업 없음</span>":""}
+    </div>`);
+}
+
+render();
+</script>
+</body>
+</html>

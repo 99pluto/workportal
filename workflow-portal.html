@@ -39,7 +39,9 @@
   .box:hover rect{filter:drop-shadow(0 3px 7px rgba(20,30,50,.22));}
   .box.selected rect{stroke:var(--accent); stroke-width:3;}
   .box text{font-size:13px; font-weight:700; fill:var(--text); text-anchor:middle; pointer-events:none;}
-  .cbadge{cursor:pointer;}
+  .cbadge{cursor:pointer; animation:badge-blink 5s ease-in-out infinite;}
+  .cbadge:hover{animation-play-state:paused;}
+  @keyframes badge-blink{0%,100%{opacity:1;} 50%{opacity:.4;}}
   .cbadge circle{fill:#ef4444; stroke:#fff; stroke-width:2; transition:.12s;}
   .cbadge:hover circle{fill:#dc2626;}
   .cbadge text{font-size:11.5px; font-weight:800; fill:#fff; text-anchor:middle; pointer-events:none;}
@@ -133,7 +135,7 @@
 <header>
   <div class="title-wrap">
     <h1>업무 Flow 포탈(ATL 예시)</h1>
-    <span class="hint">아래 화면은 프로토타입으로서 화면 예시입니다. 표시된 조직명, 인원명, 캠페인명 등은 모두 픽션이며 사실과 관련 없습니다. 조직명, 작업 박스, 뱃지 카운트를 클릭하면 상세 정보가 열립니다.</span>
+    <span class="hint">아래 화면은 프로토타입으로서 화면 예시입니다. 표시된 조직명, 인원명, 캠페인명 등은 모두 픽션이며 사실과 관련 없습니다. <span style="color:#dc2626;">조직명, 작업 박스, 뱃지 카운트를 클릭</span>하면 상세 정보가 열립니다.</span>
   </div>
   <div class="legend">
     <b>AX LEVEL</b>
@@ -416,7 +418,10 @@ function render(){
     lines.forEach((ln,i)=>{
       const tx=el("text",{x:b.cx,y:b.cy+(lines.length>1?(i===0?-3:14):5)}); tx.textContent=ln; g.appendChild(tx);
     });
-    g.addEventListener("click",()=>openTask(t.id));
+    g.addEventListener("click",()=>{
+      openTask(t.id);
+      if(CAMPAIGNS[t.id] && CAMPAIGNS[t.id].length) openModal(t.id); // 뱃지가 있으면 캠페인 팝업도 함께
+    });
     // 캠페인 수 뱃지
     const camps=CAMPAIGNS[t.id];
     if(camps && camps.length){
